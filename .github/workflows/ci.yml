@@ -82,7 +82,7 @@ jobs:
 
       # Peta nama R8: perlu untuk membaca stack trace crash dari APK release.
       - name: Unggah peta R8
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: mapping-r8
           path: app/build/outputs/mapping/release/mapping.txt
@@ -91,7 +91,7 @@ jobs:
 
       - name: Unggah laporan tes
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: laporan-tes
           path: app/build/reports/tests/
@@ -99,14 +99,14 @@ jobs:
 
       - name: Unggah laporan lint
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: laporan-lint
           path: app/build/reports/lint-results-debug.*
           if-no-files-found: ignore
 
       - name: Unggah APK debug
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: mythos-debug-apk
           path: app/build/outputs/apk/debug/*.apk
