@@ -37,7 +37,7 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data
                     android:scheme="com.mythos.app"
-                    android:path="/oauth2redirect" />
+                    android:host="oauth2redirect" />
             </intent-filter>
         </activity>
 
