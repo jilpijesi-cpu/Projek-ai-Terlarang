@@ -1,0 +1,11 @@
+# v52 — semua tombol pajangan kini berfungsi
+- Drawer: **Proyek** (daftar proyek: buka obrolan, lihat file, ekspor ZIP, hapus), **Code** (penjelajah file proyek + penampil kode, pemilih proyek), **Artefak** (hasil buatan agen: html/md/svg/gambar/dokumen; pratinjau HTML/SVG di WebView, buka dengan…, bagikan).
+- "Tambahkan ke proyek": memilih proyek melanjutkan pekerjaan di folder proyek itu.
+- **Riset**: saklar menyala bila konektor Pencarian web aktif; agen wajib mencari ≥3 kueri, membaca halaman, lalu menulis laporan dengan daftar sumber.
+- **Konektor**: saklar Pencarian web (WebSearch/WebFetch ikut hilang dari alat agen bila mati), status GitHub Actions, jalan pintas ke pengaturan model.
+- **Input suara**: tombol mikrofon memakai pengenal suara sistem (id-ID); hasilnya masuk ke kolom ketik.
+- file_paths.xml: projects/ dan incognito/ agar file bisa dibuka/dibagikan lewat FileProvider.
+- versionCode 52. Tes baru: WorkspaceTest.
+- Web.kt: kegagalan TLS ("Chain validation failed") kini dijelaskan (jam salah, VPN/DNS pribadi/proxy, root usang) dan tidak diulang agen; tes TlsMessageTest.
+- Pencarian web kini berantai: DuckDuckGo → DuckDuckGo Lite → Bing → Wikipedia (id, en); tiap kegagalan dilaporkan ke agen. WebFetch memakai pembaca r.jina.ai untuk halaman JavaScript yang nyaris kosong. Tes: SearchFallbackTest.
+- Pencarian: kolom kunci gratis Brave Search dan Tavily di Pengaturan (opsional, terenkripsi); bila diisi dipakai lebih dulu, tanpa kunci tetap jalan. webGet mendukung header dan POST (kunci hanya ke tujuan awal). Tes: KeyedSearchTest.

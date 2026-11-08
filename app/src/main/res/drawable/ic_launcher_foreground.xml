@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Logo maskot piksel (12x8 sel), diletakkan di zona aman ikon adaptif. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path android:fillColor="@color/mythos_accent" android:pathData="M34.8,34.8 h38.4 v4.8 h-38.4 z M34.8,39.6 h4.8 v4.8 h-4.8 z M44.4,39.6 h19.2 v4.8 h-19.2 z M68.4,39.6 h4.8 v4.8 h-4.8 z M25.2,44.4 h57.6 v4.8 h-57.6 z M25.2,49.2 h57.6 v4.8 h-57.6 z M34.8,54 h38.4 v4.8 h-38.4 z M34.8,58.8 h38.4 v4.8 h-38.4 z M34.8,63.6 h4.8 v4.8 h-4.8 z M44.4,63.6 h4.8 v4.8 h-4.8 z M58.8,63.6 h4.8 v4.8 h-4.8 z M68.4,63.6 h4.8 v4.8 h-4.8 z M34.8,68.4 h4.8 v4.8 h-4.8 z M44.4,68.4 h4.8 v4.8 h-4.8 z M58.8,68.4 h4.8 v4.8 h-4.8 z M68.4,68.4 h4.8 v4.8 h-4.8 z" />
+    <path android:fillColor="#FF141412" android:pathData="M39.6,39.6 h4.8 v4.8 h-4.8 z M63.6,39.6 h4.8 v4.8 h-4.8 z" />
+</vector>

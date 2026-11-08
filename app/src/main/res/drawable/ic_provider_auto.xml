@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Ikon mode Otomatis (dua percikan), biru #194D91. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24">
+    <path android:fillColor="#194D91" android:pathData="M10,3C10.6,7.6 12.4,9.4 17,10C12.4,10.6 10.6,12.4 10,17C9.4,12.4 7.6,10.6 3,10C7.6,9.4 9.4,7.6 10,3Z" />
+    <path android:fillColor="#194D91" android:pathData="M18,13C18.3,15.4 19.1,16.2 21.5,16.5C19.1,16.8 18.3,17.6 18,20C17.7,17.6 16.9,16.8 14.5,16.5C16.9,16.2 17.7,15.4 18,13Z" />
+</vector>

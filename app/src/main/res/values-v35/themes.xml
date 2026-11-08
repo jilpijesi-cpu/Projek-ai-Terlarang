@@ -1,0 +1,11 @@
+<resources>
+    <!-- Android 15 (targetSdk 35): MainActivity sudah mengatur edge-to-edge dan insets dengan enableEdgeToEdge. -->
+    <style name="Theme.Mythos" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/mythos_window</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowSplashScreenBackground">@color/mythos_window</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/ic_launcher_foreground</item>
+    </style>
+</resources>

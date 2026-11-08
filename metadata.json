@@ -1,0 +1,6 @@
+{
+  "name": "Mythos",
+  "description": "Autonomous Android AI Agent for software engineering, document & PDF generation, and personal case/dispute resolution.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
