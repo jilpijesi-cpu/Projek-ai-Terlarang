@@ -33,7 +33,7 @@ jobs:
 
       # Gradle dipasang oleh action ini lalu dipanggil sebagai `gradle` (bukan lewat gradlew).
       # Harus selaras dengan gradle-wrapper.properties (9.3.1) karena AGP 9.1.1 mewajibkan Gradle 9.x.
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@v6
         with:
           gradle-version: '9.3.1'
 
