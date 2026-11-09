@@ -407,10 +407,8 @@ fun ChatScreen(
                     Box {
                         GlyphButton({ menuOpen = true }, label = "Menu lainnya") { HeaderKebabGlyph() }
                         DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                            DropdownMenuItem(text = { Text("Pengaturan Integrasi") }, onClick = { menuOpen = false; onOpenSettings(SettingsSection.INTEGRATIONS) })
+                            DropdownMenuItem(text = { Text("Pengaturan") }, onClick = { menuOpen = false; onOpenSettings(SettingsSection.MODEL) })
                             DropdownMenuItem(text = { Text("Ekspor proyek (ZIP)") }, onClick = { menuOpen = false; onExport() })
-                            DropdownMenuItem(text = { Text("Model & pengaturan") }, onClick = { menuOpen = false; onOpenSettings(SettingsSection.MODEL) })
-                            DropdownMenuItem(text = { Text("Izin agen") }, onClick = { menuOpen = false; onOpenSettings(SettingsSection.PERMISSION) })
                         }
                     }
                 }

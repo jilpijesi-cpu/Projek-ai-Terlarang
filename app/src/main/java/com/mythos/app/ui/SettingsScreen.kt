@@ -32,7 +32,6 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -60,7 +59,6 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.mythos.app.PkceOAuthSession
@@ -68,7 +66,6 @@ import com.mythos.app.PopularModels
 import com.mythos.app.ProviderChoice
 import com.mythos.app.UserSettings
 import com.mythos.app.agent.ExtraKeys
-import com.mythos.app.agent.GitHubConfig
 import com.mythos.app.agent.GoogleAccount
 import com.mythos.app.agent.GoogleWorkspaceConfig
 import com.mythos.app.agent.HttpGoogleWorkspaceService
@@ -84,15 +81,23 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.util.UUID
 
-/** Halaman Pengaturan Integrasi: tiap tab/pintasan membuka bagian yang sesuai dan dapat berpindah langsung tanpa keluar layar. */
+/** Satu fungsi = satu tab pengaturan (tanpa duplikasi). */
 enum class SettingsSection(val title: String, val shortLabel: String) {
-    INTEGRATIONS("Pengaturan Integrasi", "Status & Uji"),
-    MODEL("Model & penyedia AI", "AI & Model"),
-    WORKSPACE("Google Workspace (OAuth 2.0)", "Akun Google"),
-    GITHUB("Build (GitHub Actions)", "GitHub"),
-    SEARCH("Pencarian web", "Pencarian"),
-    PERMISSION("Izin agen", "Izin Agen"),
+    MODEL("AI & Model", "AI & Model"),
+    WORKSPACE("Akun Google", "Google"),
+    GITHUB("GitHub", "GitHub"),
+    SEARCH("Pencarian Web", "Pencarian"),
+    PERMISSION("Izin Agen", "Izin"),
+    INTEGRATIONS("Pengaturan", "AI & Model"),
 }
+
+private val VisibleSettingsTabs = listOf(
+    SettingsSection.MODEL,
+    SettingsSection.WORKSPACE,
+    SettingsSection.GITHUB,
+    SettingsSection.SEARCH,
+    SettingsSection.PERMISSION,
+)
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -115,7 +120,8 @@ fun SettingsScreen(
     onStartPkceSession: (PkceOAuthSession) -> Unit = {},
     onLoadPkceSession: () -> PkceOAuthSession? = { null },
 ) {
-    var activeSection by remember(section) { mutableStateOf(section) }
+    val initialTab = if (section == SettingsSection.INTEGRATIONS) SettingsSection.MODEL else section
+    var activeSection by remember(section) { mutableStateOf(initialTab) }
     var s by remember { mutableStateOf(draft ?: initial) }
     LaunchedEffect(initial) {
         if (draft == null) s = initial
@@ -170,26 +176,20 @@ fun SettingsScreen(
                 Icon(Icons.AutoMirrored.Rounded.ArrowBack, "Kembali", tint = MythosColors.Ink)
             }
             Spacer(Modifier.width(4.dp))
-            Column(Modifier.weight(1f)) {
-                Text(
-                    activeSection.title,
-                    style = TextStyle(fontFamily = MythosSerif, fontSize = 23.sp, color = MythosColors.Ink)
-                )
-                Text(
-                    "Kelola seluruh layanan eksternal secara langsung tanpa rebuild APK",
-                    style = TextStyle(fontSize = 12.sp, color = MythosColors.Hint)
-                )
-            }
+            Text(
+                "Pengaturan",
+                style = TextStyle(fontFamily = MythosSerif, fontSize = 23.sp, color = MythosColors.Ink)
+            )
         }
 
-        Spacer(Modifier.height(14.dp))
+        Spacer(Modifier.height(12.dp))
 
-        // Bilah navigasi antar-tab Pengaturan Integrasi
+        // 5 tab tunggal: satu fungsi satu tab
         Row(
             Modifier.horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            SettingsSection.entries.forEach { sec ->
+            VisibleSettingsTabs.forEach { sec ->
                 val selected = sec == activeSection
                 val shape = RoundedCornerShape(18.dp)
                 Box(
@@ -216,36 +216,11 @@ fun SettingsScreen(
         Spacer(Modifier.height(18.dp))
 
         when (activeSection) {
-            SettingsSection.INTEGRATIONS -> IntegrationsOverviewSection(
-                s = s,
-                testResults = testResults,
-                testingKey = testingKey,
-                onNavigateSection = { activeSection = it },
-                onTestAll = {
-                    if (testingKey != null) return@IntegrationsOverviewSection
-                    testingKey = "ALL"
-                    scope.launch {
-                        try {
-                            val results = IntegrationTester.testAll(s)
-                            results.forEach { testResults[it.service] = it }
-                        } finally {
-                            testingKey = null
-                        }
-                    }
-                },
-                onToggleWorkspaceService = { kind, enabled ->
-                    val updated = s.withServiceConnection(kind, enabled)
-                    s = updated
-                    onPersistImmediate(updated)
-                }
-            )
-
-            SettingsSection.MODEL -> ModelAndProviderSection(
+            SettingsSection.MODEL, SettingsSection.INTEGRATIONS -> ModelAndProviderSection(
                 s = s,
                 onSettingsChange = { s = it },
                 loadFor = loadFor,
                 scanUi = scanUi,
-                onRecheckModels = { forceNext = true; recheck++ },
                 keyInput = keyInput,
                 onKeyInputChange = { keyInput = it },
                 extraKeys = extraKeys,
@@ -261,8 +236,7 @@ fun SettingsScreen(
                     testingKey = "AI"
                     scope.launch {
                         try {
-                            val res = IntegrationTester.testAiProvider(s)
-                            testResults["AI (${s.provider.label})"] = res
+                            testResults["AI (${s.provider.label})"] = IntegrationTester.testAiProvider(s)
                         } finally {
                             testingKey = null
                         }
@@ -270,7 +244,7 @@ fun SettingsScreen(
                 }
             )
 
-            SettingsSection.WORKSPACE -> GoogleWorkspaceMultiAccountSection(
+            SettingsSection.WORKSPACE -> GoogleWorkspaceSection(
                 s = s,
                 onSettingsChange = { updated ->
                     s = updated
@@ -278,25 +252,12 @@ fun SettingsScreen(
                 },
                 testResults = testResults,
                 testingKey = testingKey,
-                onTestService = { kind ->
-                    if (testingKey != null) return@GoogleWorkspaceMultiAccountSection
-                    testingKey = kind.id
-                    scope.launch {
-                        try {
-                            val res = IntegrationTester.testGoogleService(s, kind)
-                            testResults[kind.label] = res
-                        } finally {
-                            testingKey = null
-                        }
-                    }
-                },
                 onTestAllWorkspace = {
-                    if (testingKey != null) return@GoogleWorkspaceMultiAccountSection
+                    if (testingKey != null) return@GoogleWorkspaceSection
                     testingKey = "WORKSPACE_ALL"
                     scope.launch {
                         try {
-                            val results = IntegrationTester.testAllGoogleServices(s)
-                            results.forEach { testResults[it.service] = it }
+                            IntegrationTester.testAllGoogleServices(s).forEach { testResults[it.service] = it }
                         } finally {
                             testingKey = null
                         }
@@ -353,7 +314,7 @@ fun SettingsScreen(
             ExtraKeys.parse(keyInput, extraKeys[s.provider].orEmpty() + s.apiKey).added
         } else emptyList()
 
-        Spacer(Modifier.height(28.dp))
+        Spacer(Modifier.height(24.dp))
         Button(
             onClick = {
                 var toSave = s
@@ -372,171 +333,8 @@ fun SettingsScreen(
             enabled = s.isConfigured || pendingKeys.isNotEmpty() || activeSection != SettingsSection.MODEL,
             shape = RoundedCornerShape(26.dp),
             colors = ButtonDefaults.buttonColors(containerColor = MythosColors.Ink, contentColor = Color.White),
-            modifier = Modifier.fillMaxWidth().height(52.dp).testTag("save_settings_button")
-        ) { Text("Simpan & Kembali", fontSize = 16.sp) }
-    }
-}
-
-@Composable
-private fun IntegrationsOverviewSection(
-    s: UserSettings,
-    testResults: Map<String, IntegrationCheckResult>,
-    testingKey: String?,
-    onNavigateSection: (SettingsSection) -> Unit,
-    onTestAll: () -> Unit,
-    onToggleWorkspaceService: (WorkspaceServiceKind, Boolean) -> Unit,
-) {
-    Label("Ringkasan Status Integrasi & Pengujian Koneksi")
-    Text(
-        "Seluruh kredensial disimpan secara persisten dan terenkripsi menggunakan Android Keystore (AES-256-GCM). " +
-            "Token dan kunci rahasia tidak pernah ditampilkan penuh atau dicatat ke dalam log.",
-        style = TextStyle(fontSize = 12.sp, color = MythosColors.Hint),
-        modifier = Modifier.padding(bottom = 12.dp)
-    )
-
-    Button(
-        onClick = onTestAll,
-        enabled = testingKey == null,
-        shape = RoundedCornerShape(18.dp),
-        colors = ButtonDefaults.buttonColors(containerColor = MythosColors.Ink, contentColor = Color.White),
-        modifier = Modifier.fillMaxWidth().height(48.dp).testTag("test_all_connections_button")
-    ) {
-        Text(if (testingKey == "ALL") "Menguji seluruh koneksi layanan…" else "Uji Semua Koneksi Sekarang")
-    }
-
-    Spacer(Modifier.height(14.dp))
-
-    // Kartu 1: AI Provider & Model
-    IntegrationSummaryCard(
-        title = "Provider & Model AI",
-        configured = s.isConfigured,
-        subtitle = "Penyedia: ${s.displayProvider} • Model: ${s.displayModel}",
-        testResult = testResults["AI (${s.provider.label})"],
-        actionLabel = "Kelola AI",
-        onAction = { onNavigateSection(SettingsSection.MODEL) }
-    )
-
-    Spacer(Modifier.height(10.dp))
-
-    // Kartu 2: Google Workspace Multi-Akun
-    val activeAcct = s.activeGoogleAccount
-    val accountsCount = s.allGoogleAccounts.size
-    IntegrationSummaryCard(
-        title = "Google Workspace (OAuth 2.0 PKCE)",
-        configured = s.workspace != null,
-        subtitle = if (activeAcct != null) {
-            "Akun aktif: ${activeAcct.email} ($accountsCount akun tersimpan)\nLayanan: ${activeAcct.connectedServicesSummary}"
-        } else {
-            "Belum ada akun Google yang terhubung"
-        },
-        testResult = testResults["Gmail"] ?: testResults["Google Calendar"] ?: testResults["Google Drive"],
-        actionLabel = "Kelola Akun",
-        onAction = { onNavigateSection(SettingsSection.WORKSPACE) }
-    ) {
-        if (activeAcct != null) {
-            Spacer(Modifier.height(8.dp))
-            WorkspaceServiceKind.entries.forEach { kind ->
-                val connected = activeAcct.isServiceConnected(kind) && when (kind) {
-                    WorkspaceServiceKind.GMAIL -> s.gmailEnabled
-                    WorkspaceServiceKind.CALENDAR -> s.calendarEnabled
-                    WorkspaceServiceKind.DRIVE -> s.driveEnabled
-                }
-                Row(
-                    Modifier.fillMaxWidth().padding(vertical = 2.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        kind.label,
-                        style = TextStyle(fontSize = 13.sp, color = MythosColors.Ink),
-                        modifier = Modifier.weight(1f)
-                    )
-                    Text(
-                        if (connected) "Terhubung" else "Diputuskan",
-                        style = TextStyle(fontSize = 12.sp, color = if (connected) Color(0xFF2E7D32) else MythosColors.Hint),
-                        modifier = Modifier.padding(end = 8.dp)
-                    )
-                    Switch(
-                        checked = connected,
-                        onCheckedChange = { onToggleWorkspaceService(kind, it) }
-                    )
-                }
-                testResults[kind.label]?.let { res ->
-                    CheckResultBanner(res)
-                }
-            }
-        }
-    }
-
-    Spacer(Modifier.height(10.dp))
-
-    // Kartu 3: GitHub Actions
-    IntegrationSummaryCard(
-        title = "GitHub & Build APK",
-        configured = s.github != null,
-        subtitle = if (s.github != null) "Repo: ${s.githubRepo} • Token terenkripsi siap" else "Repo atau token GitHub belum diisi",
-        testResult = testResults["GitHub Actions"],
-        actionLabel = "Kelola GitHub",
-        onAction = { onNavigateSection(SettingsSection.GITHUB) }
-    )
-
-    Spacer(Modifier.height(10.dp))
-
-    // Kartu 4: Pencarian Web
-    val hasSearchKey = s.braveKey.isNotBlank() || s.tavilyKey.isNotBlank()
-    IntegrationSummaryCard(
-        title = "Pencarian Web (Brave / Tavily)",
-        configured = true,
-        subtitle = buildString {
-            append("Pencari publik aktif")
-            if (s.braveKey.isNotBlank()) append(" • Brave API siap")
-            if (s.tavilyKey.isNotBlank()) append(" • Tavily API siap")
-            if (!hasSearchKey) append(" (opsional: tambah kunci Brave/Tavily)")
-        },
-        testResult = testResults["Brave Search API"] ?: testResults["Tavily Search API"],
-        actionLabel = "Kelola Kunci",
-        onAction = { onNavigateSection(SettingsSection.SEARCH) }
-    )
-}
-
-@Composable
-private fun IntegrationSummaryCard(
-    title: String,
-    configured: Boolean,
-    subtitle: String,
-    testResult: IntegrationCheckResult?,
-    actionLabel: String,
-    onAction: () -> Unit,
-    extraContent: @Composable () -> Unit = {},
-) {
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(MythosColors.Card)
-            .border(1.dp, MythosColors.Border, RoundedCornerShape(16.dp))
-            .padding(14.dp)
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                Modifier
-                    .size(10.dp)
-                    .clip(CircleShape)
-                    .background(if (configured) Color(0xFF2E7D32) else Color(0xFFB26A00))
-            )
-            Spacer(Modifier.width(8.dp))
-            Text(
-                title,
-                style = TextStyle(fontSize = 15.5.sp, fontWeight = FontWeight.SemiBold, color = MythosColors.Ink),
-                modifier = Modifier.weight(1f)
-            )
-            TextButton(onClick = onAction) { Text(actionLabel) }
-        }
-        Text(subtitle, style = TextStyle(fontSize = 13.sp, color = MythosColors.Hint))
-        extraContent()
-        if (testResult != null) {
-            Spacer(Modifier.height(6.dp))
-            CheckResultBanner(testResult)
-        }
+            modifier = Modifier.fillMaxWidth().height(50.dp).testTag("save_settings_button")
+        ) { Text("Simpan", fontSize = 16.sp) }
     }
 }
 
@@ -578,7 +376,6 @@ private fun ModelAndProviderSection(
     onSettingsChange: (UserSettings) -> Unit,
     loadFor: (ProviderChoice) -> UserSettings,
     scanUi: ScanUi,
-    onRecheckModels: () -> Unit,
     keyInput: String,
     onKeyInputChange: (String) -> Unit,
     extraKeys: Map<ProviderChoice, List<String>>,
@@ -591,6 +388,7 @@ private fun ModelAndProviderSection(
     isTestingAi: Boolean,
     onTestAi: () -> Unit,
 ) {
+    // 1. Penyedia AI
     Label("Penyedia AI")
     Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         ProviderChoice.values().forEach { p ->
@@ -635,80 +433,66 @@ private fun ModelAndProviderSection(
             }
         }
     }
-    Spacer(Modifier.height(18.dp))
 
+    Spacer(Modifier.height(16.dp))
+
+    // 2. Model (Satu pemilih model terpadu tanpa duplikasi)
+    Label("Model")
     if (s.provider.lockedModel != null) {
-        Label("Model")
         Text(
             s.provider.lockedModel.orEmpty(),
-            style = TextStyle(fontSize = 15.sp, color = MythosColors.Ink),
+            style = TextStyle(fontSize = 14.5.sp, color = MythosColors.Ink),
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(12.dp))
                 .background(MythosColors.Card)
                 .border(1.dp, MythosColors.Border, RoundedCornerShape(12.dp))
-                .padding(horizontal = 12.dp, vertical = 12.dp)
-        )
-        Text(
-            "Model dikunci. OpenRouter memilih sendiri model gratis yang tersedia untuk tiap permintaan.",
-            style = TextStyle(fontSize = 12.sp, color = MythosColors.Hint),
-            modifier = Modifier.padding(top = 6.dp)
+                .padding(horizontal = 12.dp, vertical = 11.dp)
         )
     } else {
-        Label("Pilih Model AI Secara Dinamis")
-        val presets = PopularModels.forProvider(s.provider)
-        if (presets.isNotEmpty()) {
-            Text(
-                "Preset cepat ${s.provider.label} (ketuk untuk langsung mengganti):",
-                style = TextStyle(fontSize = 12.sp, color = MythosColors.Hint),
-                modifier = Modifier.padding(bottom = 6.dp)
+        val scannedReady = (scanUi as? ScanUi.Done)?.models
+            ?.filter { it.state != ModelState.FAILED }
+            ?.map { it.model }
+            .orEmpty()
+        val modelChoices = (PopularModels.forProvider(s.provider) + scannedReady).distinct()
+
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            PresetModelChip(
+                label = "Otomatis",
+                selected = s.model.isBlank(),
+                onClick = {
+                    val updated = s.copy(model = "")
+                    onSettingsChange(updated)
+                    onPersistImmediate(updated)
+                }
             )
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp),
-                modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp)
-            ) {
-                val autoSelected = s.model.isBlank()
+            modelChoices.forEach { m ->
                 PresetModelChip(
-                    label = "Otomatis",
-                    selected = autoSelected,
+                    label = m,
+                    selected = s.model == m,
                     onClick = {
-                        val updated = s.copy(model = "")
+                        val updated = s.copy(model = m)
                         onSettingsChange(updated)
                         onPersistImmediate(updated)
                     }
                 )
-                presets.forEach { presetModel ->
-                    PresetModelChip(
-                        label = presetModel,
-                        selected = s.model == presetModel,
-                        onClick = {
-                            val updated = s.copy(model = presetModel)
-                            onSettingsChange(updated)
-                            onPersistImmediate(updated)
-                        }
-                    )
-                }
             }
         }
 
-        ModelPicker(scanUi, s.model) { picked ->
-            val updated = s.copy(model = picked)
-            onSettingsChange(updated)
-            onPersistImmediate(updated)
-        }
-        if (scanUi !is ScanUi.Scanning && scanUi !is ScanUi.Idle) {
-            TextButton(onClick = onRecheckModels) { Text("Periksa ulang daftar model") }
-        }
         OutlinedTextField(
             value = s.model,
             onValueChange = { onSettingsChange(s.copy(model = it)) },
             singleLine = true,
-            label = { Text("Nama model kustom (kosong = otomatis)") },
+            label = { Text("Model kustom (kosong = otomatis)") },
             modifier = Modifier.fillMaxWidth().padding(top = 8.dp).testTag("custom_model_input")
         )
     }
 
+    // 3. Kunci API atau Alamat Ollama
     if (s.provider.needsKey) {
         Spacer(Modifier.height(16.dp))
         KeysSection(
@@ -724,7 +508,6 @@ private fun ModelAndProviderSection(
             onAdd = { onAddExtra(s.provider, it) },
             onRemove = { onRemoveExtra(s.provider, it) },
             onRemoveMain = { onRemoveMain(s.provider, it) },
-            hint = keyHint(s.provider),
         )
     }
 
@@ -743,10 +526,10 @@ private fun ModelAndProviderSection(
     OutlinedButton(
         onClick = onTestAi,
         enabled = !isTestingAi && (!s.provider.needsKey || s.apiKey.isNotBlank()),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(14.dp),
         modifier = Modifier.fillMaxWidth().testTag("test_ai_connection_button")
     ) {
-        Text(if (isTestingAi) "Menguji koneksi ${s.provider.label}…" else "Uji Koneksi AI (${s.provider.label})")
+        Text(if (isTestingAi) "Menguji…" else "Uji Koneksi AI")
     }
     aiTestResult?.let {
         Spacer(Modifier.height(8.dp))
@@ -767,22 +550,21 @@ private fun PresetModelChip(
             .background(if (selected) MythosColors.Ink else MythosColors.Card)
             .border(1.dp, if (selected) MythosColors.Ink else MythosColors.Border, shape)
             .clickable(onClick = onClick)
-            .padding(horizontal = 11.dp, vertical = 6.dp)
+            .padding(horizontal = 12.dp, vertical = 7.dp)
     ) {
         Text(
             label,
-            style = TextStyle(fontSize = 12.5.sp, color = if (selected) Color.White else MythosColors.Ink)
+            style = TextStyle(fontSize = 13.sp, color = if (selected) Color.White else MythosColors.Ink)
         )
     }
 }
 
 @Composable
-private fun GoogleWorkspaceMultiAccountSection(
+private fun GoogleWorkspaceSection(
     s: UserSettings,
     onSettingsChange: (UserSettings) -> Unit,
     testResults: Map<String, IntegrationCheckResult>,
     testingKey: String?,
-    onTestService: (WorkspaceServiceKind) -> Unit,
     onTestAllWorkspace: () -> Unit,
     onStartPkceSession: (PkceOAuthSession) -> Unit,
     onLoadPkceSession: () -> PkceOAuthSession?,
@@ -792,20 +574,12 @@ private fun GoogleWorkspaceMultiAccountSection(
 
     var showConsentDialog by remember { mutableStateOf(false) }
     var accountToDelete by remember { mutableStateOf<GoogleAccount?>(null) }
-    var showAddManual by remember { mutableStateOf(false) }
+    var showAdvancedInput by remember { mutableStateOf(false) }
 
-    // Pilihan scope minimum untuk akun baru
-    var reqGmail by remember { mutableStateOf(true) }
-    var reqCalendar by remember { mutableStateOf(true) }
-    var reqDrive by remember { mutableStateOf(true) }
-    var loginHintInput by remember { mutableStateOf("") }
-
-    // Pertukaran kode PKCE
     var authCodeInput by remember { mutableStateOf("") }
     var pkceStatusMsg by remember { mutableStateOf<String?>(null) }
     var exchangingPkce by remember { mutableStateOf(false) }
 
-    // Tambah/perbarui akun dengan token langsung (tanpa menampilkan token tersimpan)
     var newAccountEmail by remember { mutableStateOf("") }
     var newAccessToken by remember { mutableStateOf("") }
     var newRefreshToken by remember { mutableStateOf("") }
@@ -813,155 +587,96 @@ private fun GoogleWorkspaceMultiAccountSection(
     val accounts = s.allGoogleAccounts
     val activeAccount = s.activeGoogleAccount
 
-    Label("Manajemen Multi-Akun Google (OAuth 2.0 PKCE)")
-    Text(
-        "Tambahkan beberapa akun Google, ganti akun aktif kapan saja, atau putuskan koneksi Gmail, Calendar, dan Drive secara terpisah " +
-            "tanpa rebuild APK. Semua token disimpan terenkripsi dengan Android Keystore dan tidak pernah ditampilkan penuh.",
-        style = TextStyle(fontSize = 12.sp, color = MythosColors.Hint),
-        modifier = Modifier.padding(bottom = 12.dp)
-    )
-
-    // 1. Daftar Akun Google Tersimpan
+    // 1. Akun Google Tersimpan
+    Label("Akun Google")
     if (accounts.isEmpty()) {
-        Box(
-            Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(14.dp))
-                .background(MythosColors.Card)
-                .border(1.dp, MythosColors.Border, RoundedCornerShape(14.dp))
-                .padding(14.dp)
-        ) {
-            Text(
-                "Belum ada akun Google yang tersimpan. Gunakan tombol \"Tambah Akun Google (OAuth 2.0 PKCE)\" di bawah.",
-                style = TextStyle(fontSize = 13.sp, color = MythosColors.Hint)
-            )
-        }
+        Text(
+            "Belum ada akun terhubung.",
+            style = TextStyle(fontSize = 13.sp, color = MythosColors.Hint),
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
     } else {
-        Label("Daftar Akun Google Tersimpan (${accounts.size})")
         accounts.forEach { acct ->
             val isActive = acct.id == activeAccount?.id
-            Column(
+            Row(
                 Modifier
                     .fillMaxWidth()
                     .padding(vertical = 4.dp)
-                    .clip(RoundedCornerShape(16.dp))
+                    .clip(RoundedCornerShape(14.dp))
                     .background(MythosColors.Card)
                     .border(
                         width = if (isActive) 1.5.dp else 1.dp,
                         color = if (isActive) MythosColors.Ink else MythosColors.Border,
-                        shape = RoundedCornerShape(16.dp)
+                        shape = RoundedCornerShape(14.dp)
                     )
-                    .padding(14.dp)
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        Modifier
-                            .size(10.dp)
-                            .clip(CircleShape)
-                            .background(if (isActive) Color(0xFF2E7D32) else Color(0xFF757575))
+                Box(
+                    Modifier
+                        .size(9.dp)
+                        .clip(CircleShape)
+                        .background(if (isActive) Color(0xFF2E7D32) else Color(0xFF9E9E9E))
+                )
+                Spacer(Modifier.width(10.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        acct.email,
+                        style = TextStyle(fontSize = 14.5.sp, fontWeight = FontWeight.Medium, color = MythosColors.Ink)
                     )
-                    Spacer(Modifier.width(8.dp))
-                    Column(Modifier.weight(1f)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                acct.email,
-                                style = TextStyle(fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = MythosColors.Ink)
-                            )
-                            if (isActive) {
-                                Spacer(Modifier.width(8.dp))
-                                Box(
-                                    Modifier
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .background(Color(0xFFE8F5E9))
-                                        .padding(horizontal = 8.dp, vertical = 2.dp)
-                                ) {
-                                    Text("Aktif", style = TextStyle(fontSize = 11.sp, fontWeight = FontWeight.Medium, color = Color(0xFF1B5E20)))
-                                }
-                            }
-                        }
-                        Text(
-                            "Token terenkripsi: ${acct.maskedTokenPreview()} • Layanan: ${acct.connectedServicesSummary}",
-                            style = TextStyle(fontSize = 12.sp, color = MythosColors.Hint)
-                        )
-                    }
+                    Text(
+                        if (isActive) "Aktif • ${acct.maskedTokenPreview()}" else acct.maskedTokenPreview(),
+                        style = TextStyle(fontSize = 12.sp, color = MythosColors.Hint)
+                    )
                 }
-                Spacer(Modifier.height(8.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    if (!isActive) {
-                        OutlinedButton(
-                            onClick = { onSettingsChange(s.withActiveGoogleAccount(acct.id)) },
-                            shape = RoundedCornerShape(12.dp),
-                            modifier = Modifier.testTag("switch_account_${acct.id}")
-                        ) {
-                            Text("Gunakan Akun Ini", fontSize = 12.5.sp)
-                        }
-                    }
+                if (!isActive) {
                     TextButton(
-                        onClick = { accountToDelete = acct },
-                        modifier = Modifier.testTag("remove_account_${acct.id}")
-                    ) {
-                        Text("Hapus Akun", color = Color(0xFFB3261E), fontSize = 12.5.sp)
-                    }
+                        onClick = { onSettingsChange(s.withActiveGoogleAccount(acct.id)) },
+                        modifier = Modifier.testTag("switch_account_${acct.id}")
+                    ) { Text("Pakai") }
                 }
+                TextButton(
+                    onClick = { accountToDelete = acct },
+                    modifier = Modifier.testTag("remove_account_${acct.id}")
+                ) { Text("Hapus", color = Color(0xFFB3261E)) }
             }
         }
     }
 
-    // 2. Hubungkan & Putuskan Layanan Secara Terpisah (Gmail, Calendar, Drive)
-    Spacer(Modifier.height(18.dp))
-    Label("Kontrol Layanan Terpisah (${activeAccount?.email ?: "Belum ada akun aktif"})")
-    Text(
-        "Hubungkan atau putuskan masing-masing layanan secara independen. Layanan yang diputuskan tidak dapat diakses oleh agen.",
-        style = TextStyle(fontSize = 12.sp, color = MythosColors.Hint),
-        modifier = Modifier.padding(bottom = 8.dp)
-    )
-
-    WorkspaceServiceKind.entries.forEach { kind ->
-        val isServiceConnected = if (activeAccount != null) {
-            activeAccount.isServiceConnected(kind) && when (kind) {
-                WorkspaceServiceKind.GMAIL -> s.gmailEnabled
-                WorkspaceServiceKind.CALENDAR -> s.calendarEnabled
-                WorkspaceServiceKind.DRIVE -> s.driveEnabled
-            }
-        } else {
-            when (kind) {
-                WorkspaceServiceKind.GMAIL -> s.gmailEnabled
-                WorkspaceServiceKind.CALENDAR -> s.calendarEnabled
-                WorkspaceServiceKind.DRIVE -> s.driveEnabled
-            }
-        }
-        Column(
-            Modifier
-                .fillMaxWidth()
-                .padding(vertical = 4.dp)
-                .clip(RoundedCornerShape(14.dp))
-                .background(MythosColors.Card)
-                .border(1.dp, MythosColors.Border, RoundedCornerShape(14.dp))
-                .padding(12.dp)
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            kind.label,
-                            style = TextStyle(fontSize = 15.sp, fontWeight = FontWeight.Medium, color = MythosColors.Ink)
-                        )
-                        Spacer(Modifier.width(8.dp))
-                        Text(
-                            if (isServiceConnected) "• Terhubung" else "• Diputuskan",
-                            style = TextStyle(
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Medium,
-                                color = if (isServiceConnected) Color(0xFF2E7D32) else Color(0xFFB3261E)
-                            )
-                        )
-                    }
-                    Text(kind.description, style = TextStyle(fontSize = 12.sp, color = MythosColors.Hint))
-                    Text(
-                        "Scope minimum: ${kind.scopes.joinToString { it.substringAfterLast('/') }}",
-                        style = TextStyle(fontSize = 11.sp, color = MythosColors.Hint)
-                    )
+    // 2. Layanan Google (Satu Switch per layanan, tanpa tombol ganda)
+    Spacer(Modifier.height(14.dp))
+    Label("Layanan Google")
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(MythosColors.Card)
+            .border(1.dp, MythosColors.Border, RoundedCornerShape(14.dp))
+            .padding(horizontal = 12.dp, vertical = 6.dp)
+    ) {
+        WorkspaceServiceKind.entries.forEach { kind ->
+            val isServiceConnected = if (activeAccount != null) {
+                activeAccount.isServiceConnected(kind) && when (kind) {
+                    WorkspaceServiceKind.GMAIL -> s.gmailEnabled
+                    WorkspaceServiceKind.CALENDAR -> s.calendarEnabled
+                    WorkspaceServiceKind.DRIVE -> s.driveEnabled
                 }
+            } else {
+                when (kind) {
+                    WorkspaceServiceKind.GMAIL -> s.gmailEnabled
+                    WorkspaceServiceKind.CALENDAR -> s.calendarEnabled
+                    WorkspaceServiceKind.DRIVE -> s.driveEnabled
+                }
+            }
+            Row(
+                Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    kind.label,
+                    style = TextStyle(fontSize = 14.5.sp, color = MythosColors.Ink),
+                    modifier = Modifier.weight(1f)
+                )
                 Switch(
                     checked = isServiceConnected,
                     onCheckedChange = { connected ->
@@ -970,184 +685,54 @@ private fun GoogleWorkspaceMultiAccountSection(
                     modifier = Modifier.testTag("toggle_service_${kind.id}")
                 )
             }
-            Row(
-                Modifier.fillMaxWidth().padding(top = 6.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                TextButton(
-                    onClick = { onTestService(kind) },
-                    enabled = testingKey == null && activeAccount != null,
-                    modifier = Modifier.testTag("test_service_${kind.id}")
-                ) {
-                    Text(
-                        if (testingKey == kind.id) "Menguji ${kind.label}…"
-                        else "Uji Koneksi ${kind.label}"
-                    )
-                }
-                if (activeAccount != null) {
-                    TextButton(
-                        onClick = { onSettingsChange(s.withServiceConnection(kind, !isServiceConnected)) }
-                    ) {
-                        Text(if (isServiceConnected) "Putuskan ${kind.label}" else "Hubungkan ${kind.label}")
-                    }
-                }
-            }
             testResults[kind.label]?.let { res ->
-                Spacer(Modifier.height(4.dp))
                 CheckResultBanner(res)
+                Spacer(Modifier.height(4.dp))
             }
         }
     }
 
     if (activeAccount != null) {
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(10.dp))
         OutlinedButton(
             onClick = onTestAllWorkspace,
             enabled = testingKey == null,
             shape = RoundedCornerShape(14.dp),
             modifier = Modifier.fillMaxWidth().testTag("test_all_workspace_button")
         ) {
-            Text(if (testingKey == "WORKSPACE_ALL") "Menguji Gmail, Calendar & Drive…" else "Uji Ketiga Layanan Google Sekaligus")
+            Text(if (testingKey == "WORKSPACE_ALL") "Menguji…" else "Uji Koneksi Google")
         }
     }
 
-    // 3. Tambah / Ganti Akun Baru dengan OAuth 2.0 PKCE & Scope Minimum
-    Spacer(Modifier.height(20.dp))
-    Label("Tambah atau Hubungkan Akun Google Baru (OAuth 2.0 PKCE)")
+    // 3. Tambah Akun Baru
+    Spacer(Modifier.height(16.dp))
+    Label("Tambah Akun Google")
     OutlinedTextField(
         value = s.googleClientId,
         onValueChange = { onSettingsChange(s.copy(googleClientId = it)) },
         singleLine = true,
-        label = { Text("OAuth 2.0 Client ID") },
+        label = { Text("OAuth Client ID") },
         modifier = Modifier.fillMaxWidth().testTag("google_client_id_input")
     )
-    Spacer(Modifier.height(8.dp))
-    OutlinedTextField(
-        value = loginHintInput,
-        onValueChange = { loginHintInput = it },
-        singleLine = true,
-        label = { Text("Email akun Google yang ingin ditambahkan (opsional, login_hint)") },
-        modifier = Modifier.fillMaxWidth().testTag("google_login_hint_input")
-    )
-
-    Spacer(Modifier.height(8.dp))
-    Text(
-        "Pilih izin layanan minimum (Least-Privilege Scopes) untuk akun yang akan dihubungkan:",
-        style = TextStyle(fontSize = 12.5.sp, color = MythosColors.Ink)
-    )
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Checkbox(checked = reqGmail, onCheckedChange = { reqGmail = it })
-        Text("Gmail", style = TextStyle(fontSize = 13.sp, color = MythosColors.Ink))
-        Spacer(Modifier.width(10.dp))
-        Checkbox(checked = reqCalendar, onCheckedChange = { reqCalendar = it })
-        Text("Calendar", style = TextStyle(fontSize = 13.sp, color = MythosColors.Ink))
-        Spacer(Modifier.width(10.dp))
-        Checkbox(checked = reqDrive, onCheckedChange = { reqDrive = it })
-        Text("Drive", style = TextStyle(fontSize = 13.sp, color = MythosColors.Ink))
-    }
-
+    Spacer(Modifier.height(10.dp))
     Button(
         onClick = { showConsentDialog = true },
-        enabled = (reqGmail || reqCalendar || reqDrive) && s.googleClientId.isNotBlank(),
-        shape = RoundedCornerShape(16.dp),
+        enabled = (s.gmailEnabled || s.calendarEnabled || s.driveEnabled) && s.googleClientId.isNotBlank(),
+        shape = RoundedCornerShape(14.dp),
         colors = ButtonDefaults.buttonColors(containerColor = MythosColors.Ink, contentColor = Color.White),
         modifier = Modifier.fillMaxWidth().testTag("start_oauth_pkce_button")
     ) {
-        Text("Tambah / Login Akun Google (OAuth 2.0 + PKCE S256)")
+        Text("Login dengan Google")
     }
 
-    // Kotak penyelesaian Kode Otorisasi PKCE (untuk menyelesaikan pertukaran kode -> token di dalam aplikasi)
-    Spacer(Modifier.height(12.dp))
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
-            .background(MythosColors.Card)
-            .border(1.dp, MythosColors.Border, RoundedCornerShape(14.dp))
-            .padding(12.dp)
-    ) {
-        Text(
-            "Verifikasi Kode Otorisasi OAuth 2.0 (PKCE)",
-            style = TextStyle(fontSize = 14.sp, fontWeight = FontWeight.Medium, color = MythosColors.Ink)
-        )
-        Text(
-            "Jika peramban mengarahkan ke URL callback atau menampilkan kode otorisasi, tempel URL/kode tersebut di sini untuk menukarnya menjadi token terenkripsi dengan PKCE code_verifier.",
-            style = TextStyle(fontSize = 12.sp, color = MythosColors.Hint),
-            modifier = Modifier.padding(top = 2.dp, bottom = 8.dp)
-        )
-        OutlinedTextField(
-            value = authCodeInput,
-            onValueChange = { authCodeInput = it; pkceStatusMsg = null },
-            singleLine = true,
-            label = { Text("Tempel kode otorisasi atau URL redirect (?code=…)") },
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-            visualTransformation = PasswordVisualTransformation(),
-            modifier = Modifier.fillMaxWidth().testTag("pkce_auth_code_input")
-        )
-        Spacer(Modifier.height(8.dp))
-        Button(
-            onClick = {
-                val pkceSession = onLoadPkceSession()
-                if (pkceSession == null) {
-                    pkceStatusMsg = "Sesi PKCE belum dimulai. Ketuk tombol \"Tambah / Login Akun Google\" terlebih dahulu."
-                    return@Button
-                }
-                exchangingPkce = true
-                pkceStatusMsg = null
-                scope.launch {
-                    val result = HttpGoogleWorkspaceService.exchangeCodeWithPkce(
-                        clientId = pkceSession.clientId.ifBlank { s.googleClientId },
-                        rawCodeOrUrl = authCodeInput,
-                        codeVerifier = pkceSession.codeVerifier,
-                        redirectUri = pkceSession.redirectUri,
-                        gmailConnected = pkceSession.gmailRequested,
-                        calendarConnected = pkceSession.calendarRequested,
-                        driveConnected = pkceSession.driveRequested,
-                    )
-                    exchangingPkce = false
-                    result.fold(
-                        onSuccess = { newAcct ->
-                            val finalAcct = if (newAcct.email == "Akun Google" && pkceSession.loginHint.isNotBlank()) {
-                                newAcct.copy(id = pkceSession.loginHint.lowercase(), email = pkceSession.loginHint)
-                            } else newAcct
-                            onSettingsChange(s.withAddedOrUpdatedGoogleAccount(finalAcct))
-                            authCodeInput = ""
-                            pkceStatusMsg = "✓ Akun ${finalAcct.email} berhasil dihubungkan dan disimpan terenkripsi."
-                        },
-                        onFailure = { err ->
-                            pkceStatusMsg = "✕ ${SensitiveDataGuard.redactSensitiveCredentials(err.message ?: "Gagal menukar kode OAuth")}"
-                        }
-                    )
-                }
-            },
-            enabled = authCodeInput.isNotBlank() && !exchangingPkce,
-            colors = ButtonDefaults.buttonColors(containerColor = MythosColors.Ink, contentColor = Color.White),
-            modifier = Modifier.fillMaxWidth().testTag("exchange_pkce_code_button")
-        ) {
-            Text(if (exchangingPkce) "Menukar kode otorisasi dengan PKCE…" else "Tukar Kode & Hubungkan Akun")
-        }
-        pkceStatusMsg?.let { msg ->
-            Text(
-                msg,
-                style = TextStyle(
-                    fontSize = 12.5.sp,
-                    color = if (msg.startsWith("✓")) Color(0xFF1B5E20) else Color(0xFFB3261E)
-                ),
-                modifier = Modifier.padding(top = 6.dp)
-            )
-        }
-    }
-
-    // Opsi Tambah Akun dengan Token OAuth Langsung (Token Disembunyikan Sepenuhnya)
-    Spacer(Modifier.height(10.dp))
     TextButton(
-        onClick = { showAddManual = !showAddManual },
-        modifier = Modifier.testTag("toggle_manual_account_button")
+        onClick = { showAdvancedInput = !showAdvancedInput },
+        modifier = Modifier.padding(top = 4.dp).testTag("toggle_manual_account_button")
     ) {
-        Text(if (showAddManual) "Sembunyikan input token manual" else "Tambah akun dengan Token OAuth langsung (opsional)")
+        Text(if (showAdvancedInput) "Sembunyikan input manual" else "Input kode / token manual")
     }
-    if (showAddManual) {
+
+    if (showAdvancedInput) {
         Column(
             Modifier
                 .fillMaxWidth()
@@ -1156,16 +741,71 @@ private fun GoogleWorkspaceMultiAccountSection(
                 .border(1.dp, MythosColors.Border, RoundedCornerShape(14.dp))
                 .padding(12.dp)
         ) {
-            Text(
-                "Masukkan email/label akun dan token OAuth. Demi keamanan, token disamarkan dan langsung dienkripsi ke Android Keystore begitu disimpan.",
-                style = TextStyle(fontSize = 12.sp, color = MythosColors.Hint),
-                modifier = Modifier.padding(bottom = 8.dp)
+            OutlinedTextField(
+                value = authCodeInput,
+                onValueChange = { authCodeInput = it; pkceStatusMsg = null },
+                singleLine = true,
+                label = { Text("Kode otorisasi / URL redirect") },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                visualTransformation = PasswordVisualTransformation(),
+                modifier = Modifier.fillMaxWidth().testTag("pkce_auth_code_input")
             )
+            Spacer(Modifier.height(8.dp))
+            Button(
+                onClick = {
+                    val pkceSession = onLoadPkceSession()
+                    if (pkceSession == null) {
+                        pkceStatusMsg = "Ketuk \"Login dengan Google\" terlebih dahulu."
+                        return@Button
+                    }
+                    exchangingPkce = true
+                    pkceStatusMsg = null
+                    scope.launch {
+                        val result = HttpGoogleWorkspaceService.exchangeCodeWithPkce(
+                            clientId = pkceSession.clientId.ifBlank { s.googleClientId },
+                            rawCodeOrUrl = authCodeInput,
+                            codeVerifier = pkceSession.codeVerifier,
+                            redirectUri = pkceSession.redirectUri,
+                            gmailConnected = pkceSession.gmailRequested,
+                            calendarConnected = pkceSession.calendarRequested,
+                            driveConnected = pkceSession.driveRequested,
+                        )
+                        exchangingPkce = false
+                        result.fold(
+                            onSuccess = { newAcct ->
+                                onSettingsChange(s.withAddedOrUpdatedGoogleAccount(newAcct))
+                                authCodeInput = ""
+                                pkceStatusMsg = "✓ Akun ${newAcct.email} terhubung."
+                            },
+                            onFailure = { err ->
+                                pkceStatusMsg = "✕ ${SensitiveDataGuard.redactSensitiveCredentials(err.message ?: "Gagal menukar kode")}"
+                            }
+                        )
+                    }
+                },
+                enabled = authCodeInput.isNotBlank() && !exchangingPkce,
+                colors = ButtonDefaults.buttonColors(containerColor = MythosColors.Ink, contentColor = Color.White),
+                modifier = Modifier.fillMaxWidth().testTag("exchange_pkce_code_button")
+            ) {
+                Text(if (exchangingPkce) "Memproses…" else "Tukar Kode Otorisasi")
+            }
+            pkceStatusMsg?.let { msg ->
+                Text(
+                    msg,
+                    style = TextStyle(
+                        fontSize = 12.5.sp,
+                        color = if (msg.startsWith("✓")) Color(0xFF1B5E20) else Color(0xFFB3261E)
+                    ),
+                    modifier = Modifier.padding(top = 6.dp)
+                )
+            }
+
+            Spacer(Modifier.height(12.dp))
             OutlinedTextField(
                 value = newAccountEmail,
                 onValueChange = { newAccountEmail = it },
                 singleLine = true,
-                label = { Text("Email / Label Akun Google (mis. kerja@gmail.com)") },
+                label = { Text("Email akun") },
                 modifier = Modifier.fillMaxWidth().testTag("manual_account_email_input")
             )
             Spacer(Modifier.height(8.dp))
@@ -1173,7 +813,7 @@ private fun GoogleWorkspaceMultiAccountSection(
                 value = newAccessToken,
                 onValueChange = { newAccessToken = it },
                 singleLine = true,
-                label = { Text("OAuth 2.0 Access Token (disembunyikan)") },
+                label = { Text("Access Token") },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                 visualTransformation = PasswordVisualTransformation(),
                 modifier = Modifier.fillMaxWidth().testTag("manual_access_token_input")
@@ -1183,13 +823,13 @@ private fun GoogleWorkspaceMultiAccountSection(
                 value = newRefreshToken,
                 onValueChange = { newRefreshToken = it },
                 singleLine = true,
-                label = { Text("OAuth 2.0 Refresh Token (opsional, disembunyikan)") },
+                label = { Text("Refresh Token (opsional)") },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                 visualTransformation = PasswordVisualTransformation(),
                 modifier = Modifier.fillMaxWidth().testTag("manual_refresh_token_input")
             )
-            Spacer(Modifier.height(10.dp))
-            Button(
+            Spacer(Modifier.height(8.dp))
+            OutlinedButton(
                 onClick = {
                     val labelEmail = newAccountEmail.trim().ifEmpty { "Akun Google #${accounts.size + 1}" }
                     val acct = GoogleAccount(
@@ -1199,50 +839,40 @@ private fun GoogleWorkspaceMultiAccountSection(
                         accessToken = newAccessToken.trim(),
                         refreshToken = newRefreshToken.trim(),
                         clientId = s.googleClientId.ifBlank { GoogleWorkspaceConfig.DEFAULT_OAUTH_CLIENT_ID },
-                        gmailConnected = reqGmail,
-                        calendarConnected = reqCalendar,
-                        driveConnected = reqDrive,
+                        gmailConnected = s.gmailEnabled,
+                        calendarConnected = s.calendarEnabled,
+                        driveConnected = s.driveEnabled,
                     )
                     onSettingsChange(s.withAddedOrUpdatedGoogleAccount(acct))
                     newAccountEmail = ""
                     newAccessToken = ""
                     newRefreshToken = ""
-                    showAddManual = false
+                    showAdvancedInput = false
                 },
                 enabled = newAccessToken.isNotBlank() || newRefreshToken.isNotBlank(),
-                colors = ButtonDefaults.buttonColors(containerColor = MythosColors.Ink, contentColor = Color.White),
                 modifier = Modifier.fillMaxWidth().testTag("save_manual_account_button")
             ) {
-                Text("Tambah & Enkripsi Akun Google")
+                Text("Simpan Token Manual")
             }
         }
     }
 
-    // Dialog Persetujuan Eksplisit Pengguna sebelum OAuth 2.0 PKCE dimulai
     if (showConsentDialog) {
         val selectedScopes = GoogleWorkspaceConfig.scopesFor(
-            gmail = reqGmail,
-            calendar = reqCalendar,
-            drive = reqDrive,
+            gmail = s.gmailEnabled,
+            calendar = s.calendarEnabled,
+            drive = s.driveEnabled,
         )
         AlertDialog(
             onDismissRequest = { showConsentDialog = false },
-            title = { Text("Konfirmasi Izin OAuth 2.0 (PKCE)") },
+            title = { Text("Hubungkan Akun Google") },
             text = {
                 Column {
-                    Text(
-                        "Anda akan membuka halaman otorisasi resmi Google dengan proteksi PKCE (S256) dan scope minimum berikut:",
-                        style = TextStyle(fontSize = 13.5.sp, color = MythosColors.Ink)
-                    )
-                    Spacer(Modifier.height(8.dp))
+                    Text("Izin layanan yang diminta:", style = TextStyle(fontSize = 13.5.sp, color = MythosColors.Ink))
+                    Spacer(Modifier.height(6.dp))
                     selectedScopes.forEach { sc ->
                         Text("• ${sc.substringAfterLast('/')}", style = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.Medium, color = MythosColors.Ink))
                     }
-                    Spacer(Modifier.height(8.dp))
-                    Text(
-                        "Token hanya disimpan secara terenkripsi di Android Keystore perangkat Anda dan setiap pengiriman email tetap memerlukan persetujuan eksplisit Anda.",
-                        style = TextStyle(fontSize = 12.sp, color = MythosColors.Hint)
-                    )
                 }
             },
             confirmButton = {
@@ -1256,10 +886,9 @@ private fun GoogleWorkspaceMultiAccountSection(
                                 codeVerifier = verifier,
                                 clientId = s.googleClientId.ifBlank { GoogleWorkspaceConfig.DEFAULT_OAUTH_CLIENT_ID },
                                 redirectUri = redirectUri,
-                                gmailRequested = reqGmail,
-                                calendarRequested = reqCalendar,
-                                driveRequested = reqDrive,
-                                loginHint = loginHintInput.trim(),
+                                gmailRequested = s.gmailEnabled,
+                                calendarRequested = s.calendarEnabled,
+                                driveRequested = s.driveEnabled,
                             )
                             onStartPkceSession(session)
                             val url = GoogleWorkspaceConfig.buildAuthorizationUrl(
@@ -1267,14 +896,13 @@ private fun GoogleWorkspaceMultiAccountSection(
                                 redirectUri = redirectUri,
                                 codeChallenge = challenge,
                                 scopes = selectedScopes,
-                                loginHint = session.loginHint.takeIf { it.isNotEmpty() },
                             )
                             ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
                         }
                     },
                     modifier = Modifier.testTag("confirm_oauth_consent_button")
                 ) {
-                    Text("Setuju & Lanjutkan ke Google")
+                    Text("Lanjutkan")
                 }
             },
             dismissButton = {
@@ -1283,14 +911,11 @@ private fun GoogleWorkspaceMultiAccountSection(
         )
     }
 
-    // Dialog Konfirmasi Hapus Akun Google
     accountToDelete?.let { acct ->
         AlertDialog(
             onDismissRequest = { accountToDelete = null },
-            title = { Text("Hapus akun Google?") },
-            text = {
-                Text("Akun \"${acct.email}\" beserta token OAuth terenkripsinya akan dihapus dari perangkat ini.")
-            },
+            title = { Text("Hapus akun?") },
+            text = { Text("Hapus \"${acct.email}\" dari perangkat ini?") },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -1317,18 +942,12 @@ private fun GitHubIntegrationSection(
     isTesting: Boolean,
     onTestGitHub: () -> Unit,
 ) {
-    Label("Build & Repository (GitHub Actions)")
-    Text(
-        "Semua build/tes agen berjalan di GitHub Actions: proyek di-push ke branch mythos/<proyek> di repo di bawah, lalu hasil run dibaca agen. " +
-            "Token disimpan terenkripsi dengan Android Keystore dan tidak pernah ditampilkan.",
-        style = TextStyle(fontSize = 12.sp, color = MythosColors.Hint),
-        modifier = Modifier.padding(bottom = 8.dp)
-    )
+    Label("GitHub Actions")
     OutlinedTextField(
         value = s.githubRepo,
         onValueChange = { onSettingsChange(s.copy(githubRepo = it)) },
         singleLine = true,
-        label = { Text("Repo (pemilik/nama)") },
+        label = { Text("Repository (pemilik/nama)") },
         modifier = Modifier.fillMaxWidth().testTag("github_repo_input")
     )
     Spacer(Modifier.height(10.dp))
@@ -1336,36 +955,34 @@ private fun GitHubIntegrationSection(
         value = s.githubToken,
         onValueChange = { onSettingsChange(s.copy(githubToken = it)) },
         singleLine = true,
-        label = { Text("Token GitHub (disembunyikan)") },
+        label = { Text("Token GitHub") },
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
         visualTransformation = PasswordVisualTransformation(),
         modifier = Modifier.fillMaxWidth().testTag("github_token_input")
     )
     if (s.githubToken.isNotBlank()) {
-        Text(
-            "Token tersimpan (disamarkan): ${ExtraKeys.mask(s.githubToken)}",
-            style = TextStyle(fontSize = 12.sp, color = MythosColors.Hint),
-            modifier = Modifier.padding(top = 4.dp)
-        )
+        Row(
+            Modifier.fillMaxWidth().padding(top = 4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                "Tersimpan: ${ExtraKeys.mask(s.githubToken)}",
+                style = TextStyle(fontSize = 12.sp, color = MythosColors.Hint),
+                modifier = Modifier.weight(1f)
+            )
+            TextButton(onClick = { onSettingsChange(s.copy(githubToken = "")) }) {
+                Text("Hapus token", color = Color(0xFFB3261E))
+            }
+        }
     }
-    Text(
-        "Token fine-grained untuk repo itu dengan izin Contents: Read and write, Workflows: Read and write, dan Actions: Read. " +
-            "Disimpan terenkripsi (Android Keystore).",
-        style = TextStyle(fontSize = 12.sp, color = MythosColors.Hint),
-        modifier = Modifier.padding(top = 4.dp, bottom = 8.dp)
-    )
-    StatusRow("Repo valid", GitHubConfig.isValidRepo(s.githubRepo), null, {})
-    StatusRow("Token terisi", s.githubToken.isNotBlank(), if (s.githubToken.isNotBlank()) "Hapus token" else null) {
-        onSettingsChange(s.copy(githubToken = ""))
-    }
-    Spacer(Modifier.height(10.dp))
+    Spacer(Modifier.height(12.dp))
     OutlinedButton(
         onClick = onTestGitHub,
         enabled = !isTesting && s.github != null,
         shape = RoundedCornerShape(14.dp),
         modifier = Modifier.fillMaxWidth().testTag("test_github_connection_button")
     ) {
-        Text(if (isTesting) "Menguji koneksi GitHub…" else "Uji Koneksi GitHub & Izin Repo")
+        Text(if (isTesting) "Menguji…" else "Uji Koneksi GitHub")
     }
     testResult?.let {
         Spacer(Modifier.height(8.dp))
@@ -1382,18 +999,12 @@ private fun WebSearchIntegrationSection(
     isTesting: Boolean,
     onTestSearch: () -> Unit,
 ) {
-    Label("Pencarian web (opsional, gratis)")
-    Text(
-        "Tanpa kunci pun agen mencari lewat DuckDuckGo, Bing, dan Wikipedia. Kunci paket gratis di bawah membuat hasil lebih stabil " +
-            "(tanpa captcha): Brave Search API (api.search.brave.com) atau Tavily (tavily.com). Disimpan terenkripsi.",
-        style = TextStyle(fontSize = 12.sp, color = MythosColors.Hint),
-        modifier = Modifier.padding(bottom = 8.dp)
-    )
+    Label("Kunci API Pencarian Web (Opsional)")
     OutlinedTextField(
         value = s.braveKey,
         onValueChange = { onSettingsChange(s.copy(braveKey = it)) },
         singleLine = true,
-        label = { Text("Kunci Brave Search (disembunyikan)") },
+        label = { Text("Kunci Brave Search") },
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
         visualTransformation = PasswordVisualTransformation(),
         modifier = Modifier.fillMaxWidth()
@@ -1406,7 +1017,7 @@ private fun WebSearchIntegrationSection(
         value = s.tavilyKey,
         onValueChange = { onSettingsChange(s.copy(tavilyKey = it)) },
         singleLine = true,
-        label = { Text("Kunci Tavily (disembunyikan)") },
+        label = { Text("Kunci Tavily") },
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
         visualTransformation = PasswordVisualTransformation(),
         modifier = Modifier.fillMaxWidth()
@@ -1421,7 +1032,7 @@ private fun WebSearchIntegrationSection(
         shape = RoundedCornerShape(14.dp),
         modifier = Modifier.fillMaxWidth().testTag("test_search_connection_button")
     ) {
-        Text(if (isTesting) "Menguji kunci pencarian web…" else "Uji Koneksi Kunci Pencarian Web")
+        Text(if (isTesting) "Menguji…" else "Uji Koneksi Pencarian")
     }
     braveResult?.let {
         Spacer(Modifier.height(8.dp))
@@ -1438,16 +1049,11 @@ private fun PermissionModeSection(
     s: UserSettings,
     onSettingsChange: (UserSettings) -> Unit,
 ) {
-    Label("Mode izin agen")
-    Text(
-        "Menentukan kapan agen harus bertanya sebelum bertindak. Menghapus file, mengirim email eksternal, dan build workflow baru selalu meminta persetujuan di semua mode.",
-        style = TextStyle(fontSize = 12.sp, color = MythosColors.Hint),
-        modifier = Modifier.padding(bottom = 8.dp)
-    )
+    Label("Izin Agen")
     val modes = listOf(
-        PermissionMode.ACCEPT_EDITS to ("Tulis otomatis" to "Agen boleh membuat dan mengubah file tanpa bertanya (bawaan)."),
-        PermissionMode.DEFAULT to ("Tanya dulu" to "Setiap menulis atau mengubah file meminta persetujuan Anda."),
-        PermissionMode.PLAN to ("Rencana saja" to "Agen hanya membaca dan menyusun rencana; baru boleh mengubah file setelah Anda menyetujui rencananya."),
+        PermissionMode.ACCEPT_EDITS to ("Tulis otomatis" to "Buat & ubah file langsung"),
+        PermissionMode.DEFAULT to ("Tanya dulu" to "Minta izin sebelum ubah file"),
+        PermissionMode.PLAN to ("Rencana saja" to "Susun rencana sebelum ubah file"),
     )
     modes.forEach { (m, text) ->
         val on = s.permissionMode == m
@@ -1464,16 +1070,11 @@ private fun PermissionModeSection(
             RadioButton(selected = on, onClick = null)
             Spacer(Modifier.width(10.dp))
             Column {
-                Text(text.first, style = TextStyle(fontSize = 16.sp, color = MythosColors.Ink))
+                Text(text.first, style = TextStyle(fontSize = 15.5.sp, color = MythosColors.Ink))
                 Text(text.second, style = TextStyle(fontSize = 12.sp, color = MythosColors.Hint))
             }
         }
     }
-    Text(
-        "Perubahan berlaku pada tugas berikutnya.",
-        style = TextStyle(fontSize = 12.sp, color = MythosColors.Hint),
-        modifier = Modifier.padding(top = 8.dp)
-    )
 }
 
 @Composable
@@ -1483,19 +1084,6 @@ private fun Label(text: String) {
         style = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.Medium, color = MythosColors.Hint),
         modifier = Modifier.padding(bottom = 6.dp)
     )
-}
-
-@Composable
-private fun StatusRow(text: String, ok: Boolean, actionLabel: String?, onAction: () -> Unit) {
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Text(
-            if (ok) "✓" else "✕",
-            style = TextStyle(fontSize = 15.sp, color = if (ok) Color(0xFF2E7D32) else Color(0xFFB3261E))
-        )
-        Spacer(Modifier.width(8.dp))
-        Text(text, style = TextStyle(fontSize = 14.sp, color = MythosColors.Ink), modifier = Modifier.weight(1f))
-        if (actionLabel != null) TextButton(onClick = onAction) { Text(actionLabel) }
-    }
 }
 
 @Composable
@@ -1509,7 +1097,6 @@ private fun KeysSection(
     onAdd: (String) -> String,
     onRemove: (String) -> Unit,
     onRemoveMain: (String) -> Unit,
-    hint: String?,
 ) {
     var message by remember(provider) { mutableStateOf<String?>(null) }
     var removing by remember(provider) { mutableStateOf<String?>(null) }
@@ -1519,19 +1106,12 @@ private fun KeysSection(
     OutlinedTextField(
         value = input,
         onValueChange = { onInputChange(it); message = null },
-        minLines = 2,
-        maxLines = 4,
-        label = { Text("Tempel satu atau banyak kunci (disembunyikan saat disimpan)") },
+        singleLine = true,
+        label = { Text("Tempel kunci API") },
         visualTransformation = PasswordVisualTransformation(),
         modifier = Modifier.fillMaxWidth().testTag("api_key_input")
     )
-    hint?.let { Text(it, style = small, modifier = Modifier.padding(top = 6.dp)) }
-    Text(
-        "Boleh banyak sekaligus (pisahkan dengan baris baru atau spasi). Kunci pertama jadi kunci utama; " +
-            "yang lain dipakai bergantian bila kunci utama kena batas laju atau ditolak. Disimpan terenkripsi (Android Keystore) di perangkat ini.",
-        style = small,
-        modifier = Modifier.padding(top = 4.dp, bottom = 6.dp)
-    )
+    Spacer(Modifier.height(8.dp))
     Button(
         onClick = {
             val text = input.trim()
@@ -1543,7 +1123,7 @@ private fun KeysSection(
                     onMainChange(r.added.first())
                     val rest = r.added.drop(1)
                     if (rest.isNotEmpty()) onAdd(rest.joinToString("\n"))
-                    message = "Kunci utama tersimpan" + (if (rest.isNotEmpty()) ", ${rest.size} kunci cadangan ditambahkan" else "") + "."
+                    message = "Kunci tersimpan."
                     onInputChange("")
                 }
             } else {
@@ -1554,16 +1134,16 @@ private fun KeysSection(
         enabled = input.isNotBlank(),
         colors = ButtonDefaults.buttonColors(containerColor = MythosColors.Ink, contentColor = Color.White),
         modifier = Modifier.testTag("add_api_key_button")
-    ) { Text("Tambah kunci") }
+    ) { Text("Tambah Kunci") }
     message?.let {
-        Text(it, style = TextStyle(fontSize = 13.sp, color = MythosColors.Ink), modifier = Modifier.padding(top = 8.dp))
+        Text(it, style = TextStyle(fontSize = 12.5.sp, color = MythosColors.Ink), modifier = Modifier.padding(top = 6.dp))
     }
     all.forEachIndexed { i, k ->
         Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text(
-                    "${provider.label} #${i + 1}" + if (i == 0) " (utama)" else " (cadangan)",
-                    style = TextStyle(fontSize = 14.sp, color = MythosColors.Ink)
+                    "${provider.label} #${i + 1}" + if (i == 0) " (utama)" else "",
+                    style = TextStyle(fontSize = 13.5.sp, color = MythosColors.Ink)
                 )
                 Text(ExtraKeys.mask(k), style = small)
             }
@@ -1573,16 +1153,16 @@ private fun KeysSection(
                     onMainChange(k)
                     onRemove(k)
                     if (oldMain.isNotBlank()) onAdd(oldMain)
-                }) { Text("Jadikan Utama") }
+                }) { Text("Utama") }
             }
-            TextButton(onClick = { removing = k }) { Text("Hapus") }
+            TextButton(onClick = { removing = k }) { Text("Hapus", color = Color(0xFFB3261E)) }
         }
     }
     removing?.let { k ->
         AlertDialog(
             onDismissRequest = { removing = null },
-            title = { Text("Hapus kunci ini?") },
-            text = { Text(ExtraKeys.mask(k) + " akan dihapus dari aplikasi sekarang juga. Anda bisa menempelkannya lagi nanti.") },
+            title = { Text("Hapus kunci?") },
+            text = { Text("Hapus ${ExtraKeys.mask(k)}?") },
             confirmButton = {
                 TextButton(onClick = {
                     if (k == main) {
@@ -1592,7 +1172,7 @@ private fun KeysSection(
                         if (k in extras) onRemove(k)
                     } else onRemove(k)
                     removing = null
-                }) { Text("Hapus") }
+                }) { Text("Hapus", color = Color(0xFFB3261E)) }
             },
             dismissButton = { TextButton(onClick = { removing = null }) { Text("Batal") } },
         )
@@ -1604,61 +1184,4 @@ private sealed interface ScanUi {
     data object Scanning : ScanUi
     data class Done(val models: List<ModelStatus>) : ScanUi
     data class Error(val message: String) : ScanUi
-}
-
-@Composable
-private fun ModelPicker(ui: ScanUi, selected: String, onPick: (String) -> Unit) {
-    val hint = TextStyle(fontSize = 12.sp, color = MythosColors.Hint)
-    ModelRow(
-        dot = Color(0xFF2E7D32), title = "Otomatis (disarankan)",
-        subtitle = "Aplikasi memilih model terbaik yang jalan dan berganti sendiri bila error/sibuk.",
-        selected = selected.isBlank(), enabled = true
-    ) { onPick("") }
-    when (ui) {
-        ScanUi.Idle -> Text("Isi API key untuk memindai daftar model langsung dari server penyedia.", style = hint, modifier = Modifier.padding(top = 6.dp))
-        ScanUi.Scanning -> Text("Memeriksa model yang tersedia untuk kunci ini…", style = hint, modifier = Modifier.padding(top = 6.dp))
-        is ScanUi.Error -> Text(
-            "Daftar model tidak bisa diambil: ${ui.message}. Anda tetap bisa memakai preset cepat di atas, mode otomatis, atau ketik nama model manual.",
-            style = hint, modifier = Modifier.padding(top = 6.dp)
-        )
-        is ScanUi.Done -> ui.models.forEach { m ->
-            val (color, label) = when (m.state) {
-                ModelState.READY -> Color(0xFF2E7D32) to "siap"
-                ModelState.UNTESTED -> Color(0xFF757575) to "cadangan (belum diuji)"
-                ModelState.BUSY -> Color(0xFFB26A00) to "sibuk: ${m.detail}"
-                ModelState.FAILED -> Color(0xFFB3261E) to "tidak bisa: ${m.detail}"
-            }
-            ModelRow(color, m.model, label, selected == m.model, m.state != ModelState.FAILED) { onPick(m.model) }
-        }
-    }
-}
-
-@Composable
-private fun ModelRow(dot: Color, title: String, subtitle: String, selected: Boolean, enabled: Boolean, onClick: () -> Unit) {
-    val shape = RoundedCornerShape(12.dp)
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .padding(top = 6.dp)
-            .clip(shape)
-            .background(if (selected) MythosColors.Card else Color.Transparent)
-            .border(1.dp, if (selected) MythosColors.Ink else MythosColors.Border, shape)
-            .clickable(enabled = enabled, onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 9.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Box(Modifier.size(10.dp).clip(RoundedCornerShape(5.dp)).background(dot))
-        Spacer(Modifier.width(10.dp))
-        Column(Modifier.weight(1f)) {
-            Text(title, style = TextStyle(fontSize = 14.sp, color = if (enabled) MythosColors.Ink else MythosColors.Hint))
-            Text(subtitle, style = TextStyle(fontSize = 12.sp, color = MythosColors.Hint))
-        }
-    }
-}
-
-private fun keyHint(p: ProviderChoice): String? = when (p) {
-    ProviderChoice.HUGGINGFACE -> "Token akses Hugging Face (hf_…) dengan izin \"Make calls to Inference Providers\"."
-    ProviderChoice.GITHUB_MODELS -> "Personal access token GitHub dengan izin \"models:read\"."
-    ProviderChoice.OPENROUTER -> "Kunci API OpenRouter (sk-or-…)."
-    else -> null
 }

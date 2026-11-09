@@ -22,8 +22,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.Extension
-import androidx.compose.material.icons.outlined.Inventory2
-import androidx.compose.material.icons.outlined.Key
 import androidx.compose.material.icons.outlined.TravelExplore
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -284,29 +282,23 @@ fun ProjectSheet(ws: WorkspaceHooks, onDismiss: () -> Unit) {
     }
 }
 
-/** Konektor yang sungguhan: pusat integrasi, pencarian web, mode riset, Google Workspace per layanan, build GitHub Actions, dan pengaturan model. */
+/** Konektor: pengatur cepat pencarian web & riset di chat, serta pintasan tunggal ke Pengaturan. */
 @Composable
 fun ConnectorsSheet(ws: WorkspaceHooks, onOpenSettings: (SettingsSection) -> Unit, onDismiss: () -> Unit) {
     val researchOn = ws.research && ws.webEnabled
-    MythosSheet("Konektor & Integrasi", onDismiss) {
+    MythosSheet("Konektor", onDismiss) {
         InfoRow(
-            Icons.Outlined.Extension,
-            "Pengaturan Integrasi & Uji Koneksi",
-            "Status seluruh koneksi, uji koneksi nyata, dan manajemen multi-akun",
-            trailing = { ChevronGlyph() },
-            onClick = { onOpenSettings(SettingsSection.INTEGRATIONS); onDismiss() }
-        )
-        Spacer(Modifier.height(12.dp))
-        InfoRow(
-            Icons.Outlined.TravelExplore, "Pencarian web", "Alat WebSearch dan WebFetch untuk agen (halaman dibuka otomatis tanpa izin)",
+            Icons.Outlined.TravelExplore,
+            "Pencarian web",
+            "Izinkan agen mencari di web",
             trailing = { Switch(checked = ws.webEnabled, onCheckedChange = { ws.onWeb(it) }) },
             onClick = { ws.onWeb(!ws.webEnabled) }
         )
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(10.dp))
         InfoRow(
-            Icons.Outlined.TravelExplore, "Riset mendalam",
-            if (ws.webEnabled) "Agen mencari beberapa sumber web, membaca halamannya, lalu menulis laporan bersumber"
-            else "Aktifkan pencarian web untuk menggunakan riset",
+            Icons.Outlined.TravelExplore,
+            "Riset mendalam",
+            "Baca banyak sumber web sekaligus",
             enabled = ws.webEnabled,
             trailing = {
                 Switch(
@@ -320,91 +312,25 @@ fun ConnectorsSheet(ws: WorkspaceHooks, onOpenSettings: (SettingsSection) -> Uni
             },
             onClick = { ws.onResearch(!researchOn) }
         )
-        Spacer(Modifier.height(12.dp))
-        val googleSub = if (ws.activeGoogleAccountEmail.isNotBlank()) {
-            val activeList = buildList {
-                if (ws.gmailConnected) add("Gmail")
-                if (ws.calendarConnected) add("Calendar")
-                if (ws.driveConnected) add("Drive")
-            }
-            val svcText = if (activeList.isEmpty()) "Semua layanan diputuskan" else activeList.joinToString(" • ")
-            "Akun aktif: ${ws.activeGoogleAccountEmail} (${ws.googleAccountCount} akun) — $svcText"
-        } else {
-            "Tambah/ganti akun Google & kelola Gmail, Calendar, Drive (OAuth 2.0 PKCE)"
-        }
+        Spacer(Modifier.height(10.dp))
         InfoRow(
-            Icons.Outlined.Extension, "Google Workspace (Multi-Akun)",
-            googleSub,
-            trailing = { ChevronGlyph() }, onClick = { onOpenSettings(SettingsSection.WORKSPACE); onDismiss() }
-        )
-        if (ws.activeGoogleAccountEmail.isNotBlank()) {
-            Spacer(Modifier.height(8.dp))
-            InfoRow(
-                Icons.Outlined.Extension,
-                "Gmail (${ws.activeGoogleAccountEmail})",
-                if (ws.gmailConnected) "Terhubung: baca email & buat/kirim draf" else "Diputuskan",
-                trailing = {
-                    Switch(
-                        checked = ws.gmailConnected,
-                        onCheckedChange = { ws.onToggleGoogleService(com.mythos.app.agent.WorkspaceServiceKind.GMAIL, it) }
-                    )
-                },
-                onClick = { ws.onToggleGoogleService(com.mythos.app.agent.WorkspaceServiceKind.GMAIL, !ws.gmailConnected) }
-            )
-            Spacer(Modifier.height(8.dp))
-            InfoRow(
-                Icons.Outlined.Extension,
-                "Google Calendar (${ws.activeGoogleAccountEmail})",
-                if (ws.calendarConnected) "Terhubung: sinkronisasi jadwal & SLA" else "Diputuskan",
-                trailing = {
-                    Switch(
-                        checked = ws.calendarConnected,
-                        onCheckedChange = { ws.onToggleGoogleService(com.mythos.app.agent.WorkspaceServiceKind.CALENDAR, it) }
-                    )
-                },
-                onClick = { ws.onToggleGoogleService(com.mythos.app.agent.WorkspaceServiceKind.CALENDAR, !ws.calendarConnected) }
-            )
-            Spacer(Modifier.height(8.dp))
-            InfoRow(
-                Icons.Outlined.Extension,
-                "Google Drive (${ws.activeGoogleAccountEmail})",
-                if (ws.driveConnected) "Terhubung: folder & PDF bukti (scope drive.file)" else "Diputuskan",
-                trailing = {
-                    Switch(
-                        checked = ws.driveConnected,
-                        onCheckedChange = { ws.onToggleGoogleService(com.mythos.app.agent.WorkspaceServiceKind.DRIVE, it) }
-                    )
-                },
-                onClick = { ws.onToggleGoogleService(com.mythos.app.agent.WorkspaceServiceKind.DRIVE, !ws.driveConnected) }
-            )
-        }
-        Spacer(Modifier.height(12.dp))
-        InfoRow(
-            Icons.Outlined.Extension, "GitHub Actions", if (ws.githubReady) "Aktif: agen bisa membangun dan menguji" else "Belum diatur: ketuk untuk mengisi token dan repo",
-            trailing = { ChevronGlyph() }, onClick = { onOpenSettings(SettingsSection.GITHUB); onDismiss() }
-        )
-        Spacer(Modifier.height(12.dp))
-        InfoRow(
-            Icons.Outlined.Inventory2, "Model & kunci API", "Penyedia, model dinamis, Ollama lokal",
-            trailing = { ChevronGlyph() }, onClick = { onOpenSettings(SettingsSection.MODEL); onDismiss() }
-        )
-        Spacer(Modifier.height(12.dp))
-        InfoRow(
-            Icons.Outlined.Key, "Kunci pencarian web", "Brave Search dan Tavily (opsional)",
-            trailing = { ChevronGlyph() }, onClick = { onOpenSettings(SettingsSection.SEARCH); onDismiss() }
+            Icons.Outlined.Extension,
+            "Pengaturan",
+            "AI, Google, GitHub, Pencarian & Izin",
+            trailing = { ChevronGlyph() },
+            onClick = { onOpenSettings(SettingsSection.MODEL); onDismiss() }
         )
     }
 }
 
 private fun providerNote(p: ProviderChoice): String = when (p) {
-    ProviderChoice.OLLAMA -> "Model lokal di perangkat atau jaringan Anda"
-    ProviderChoice.OPENROUTER -> "Model gratis lewat kunci OpenRouter"
-    else -> "Memakai kunci API Anda sendiri"
+    ProviderChoice.OLLAMA -> "Model lokal"
+    ProviderChoice.OPENROUTER -> "Model gratis OpenRouter"
+    else -> "Kunci API"
 }
 
 /**
- * "Pemilihan model": daftar penyedia (OpenAI, Claude, Gemini, dst.) serta preset model dinamis untuk penyedia aktif.
- * Memilih salah satu langsung mengganti penyedia/model yang dipakai agen; bila kuncinya belum diisi, layar Pengaturan terbuka.
+ * "Pemilihan model": daftar penyedia & model aktif.
  */
 @Composable
 fun ModelSheet(
@@ -419,10 +345,10 @@ fun ModelSheet(
 ) {
     val all = ProviderChoice.values().toList()
     val presets = com.mythos.app.PopularModels.forProvider(current)
-    MythosSheet("Pemilihan penyedia & model AI", onDismiss) {
+    MythosSheet("Model AI", onDismiss) {
         if (current.lockedModel == null && presets.isNotEmpty()) {
             Text(
-                "Model aktif (${current.label}):",
+                "Model (${current.label}):",
                 style = sub(Color(0xFF6B6965)),
                 modifier = Modifier.padding(horizontal = 28.dp, vertical = 4.dp)
             )
@@ -433,7 +359,7 @@ fun ModelSheet(
                     .clip(RoundedCornerShape(20.dp))
                     .background(RowWhite)
             ) {
-                val options = listOf("" to "Otomatis (disarankan)") + presets.map { it to it }
+                val options = listOf("" to "Otomatis") + presets.map { it to it }
                 options.forEachIndexed { idx, (modelId, label) ->
                     val isSelected = currentModel == modelId
                     Row(
@@ -506,19 +432,16 @@ fun ModelSheet(
         }
         Spacer(Modifier.height(12.dp))
         val footerText = buildAnnotatedString {
-            withStyle(SpanStyle(color = Color(0xFF6B6965))) {
-                append("Nama model kustom, kunci API, Google Workspace, dan uji koneksi diatur di Pengaturan. ")
-            }
             withStyle(SpanStyle(color = LinkBlue, textDecoration = TextDecoration.Underline)) {
-                append("Buka pengaturan")
+                append("Buka Pengaturan")
             }
         }
         Text(
             footerText,
-            style = TextStyle(fontFamily = MythosSans, fontWeight = FontWeight.Normal, fontSize = 13.sp, lineHeight = 18.5.sp),
+            style = TextStyle(fontFamily = MythosSans, fontWeight = FontWeight.Normal, fontSize = 13.5.sp),
             modifier = Modifier
                 .padding(horizontal = 36.dp)
-                .clickable(onClickLabel = "Pengaturan model") { onMore(); onDismiss() }
+                .clickable(onClickLabel = "Pengaturan") { onMore(); onDismiss() }
         )
     }
 }
